@@ -246,7 +246,7 @@ class ORTTrainer(Trainer):
     def _inner_training_loop(
         self, batch_size=None, args=None, resume_from_checkpoint=None, trial=None, ignore_keys_for_eval=None
     ):
-        from torch_ort import ORTModule
+        from onnxruntime.training.ortmodule.experimental.hierarchical_ortmodule import HierarchicalORTModule
 
         self._train_batch_size = batch_size
 
@@ -310,8 +310,8 @@ class ORTTrainer(Trainer):
         )
 
         # Wrap the model with `ORTModule`
-        logger.info("Wrap ORTModule for ONNX Runtime training.")
-        model = ORTModule(self.model)
+        logger.info("Wrap HierarchicalORTModule  for ONNX Runtime training.")
+        model = HierarchicalORTModule(self.model)
         self.model_wrapped = model
 
         if args.deepspeed:
@@ -620,10 +620,11 @@ class ORTTrainer(Trainer):
         self.control = self.callback_handler.on_train_end(args, self.state, self.control)
 
         # ONNX Runtime - Update the `session_options` for inference
-        while hasattr(model, "module") and not isinstance(model, ORTModule):
+        while hasattr(model, "module") and not isinstance(model, HierarchicalORTModule):
             model = model.module
-        inference_manager = model._torch_module._execution_manager._inference_manager
-        self.session_options, providers, provider_options = inference_manager._get_session_config()
+        # AttributeError: 'HierarchicalORTModule' object has no attribute '_torch_module'
+        # inference_manager = model._torch_module._execution_manager._inference_manager
+        # self.session_options, providers, provider_options = inference_manager._get_session_config()
 
         return TrainOutput(self.state.global_step, train_loss, metrics)
 
@@ -1364,9 +1365,9 @@ class ORTTrainer(Trainer):
 
         # train/eval could be run multiple-times - if already wrapped, don't re-wrap it again
         if unwrap_model(model) is not model:
-            from torch_ort import ORTModule
+            from onnxruntime.training.ortmodule.experimental.hierarchical_ortmodule import HierarchicalORTModule
 
-            if not isinstance(model, ORTModule):
+            if not isinstance(model, HierarchicalORTModule):
                 return model
 
         # Mixed precision training with apex (torch < 1.6)
